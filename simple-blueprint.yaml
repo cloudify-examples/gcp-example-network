@@ -1,0 +1,154 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+description: >
+  Create an GCP Example Network.
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
+  - http://www.getcloudify.org/spec/gcp-plugin/1.4.0/plugin.yaml
+
+inputs:
+
+  client_x509_cert_url:
+    type: string
+    default: { get_secret: gcp_client_x509_cert_url }
+
+  client_email:
+    type: string
+    default: { get_secret: gcp_client_email }
+
+  client_id:
+    type: string
+    default: { get_secret: gcp_client_id }
+
+  project_id:
+    type: string
+    default: { get_secret: gcp_project_id }
+
+  private_key_id:
+    type: string
+    default: { get_secret: gcp_private_key_id }
+
+  private_key:
+    type: string
+    default: { get_secret: gcp_private_key }
+
+  zone:
+    default: { get_secret: gcp_zone }
+
+  region:
+    default: { get_secret: gcp_region }
+
+  public_subnet_cidr:
+    default: 10.11.12.0/22
+
+  private_subnet_cidr:
+    default: 10.11.16.0/22
+
+  resource_prefix:
+    default: cfy
+
+  resource_suffix:
+    default: 1
+
+  secrets:
+    description: >
+      key, value pairs of secrets used in AWS blueprint examples.
+    default:
+    - key: client_x509_cert_url
+      value: { get_input: client_x509_cert_url }
+    - key: client_email
+      value: { get_input: client_email }
+    - key: client_id
+      value: { get_input: client_id }
+    - key: project_id
+      value: { get_input: project_id }
+    - key: private_key_id
+      value: { get_input: private_key_id }
+    - key: private_key
+      value: { get_input: private_key }
+    - key: management_network_name
+      value: { get_property: [ network, name ] }
+    - key: zone
+      value: { get_input: zone }
+    - key: region
+      value: { get_input: region }
+    - key: management_subnetwork_name
+      value: { get_property: [ public_subnet, name ] }
+    - key: private_subnetwork_name
+      value: { get_property: [ private_subnet, name ] }
+    - key: ubuntu_trusty_image
+      value: { get_input: ubuntu_trusty_image }
+    - key: centos_core_image
+      value: { get_input: centos_core_image }
+    - key: small_instance_type
+      value: { get_input: small_instance_type }
+    - key: agent_key_public
+      value: { get_attribute: [ manager_key, public_key_export ] }
+    - key: agent_key_private
+      value: { get_attribute: [ manager_key, private_key_export ] }
+
+dsl_definitions:
+
+  client_config: &client_config
+    auth:
+      type: service_account
+      auth_uri: https://accounts.google.com/o/oauth2/auth
+      token_uri: https://accounts.google.com/o/oauth2/token
+      auth_provider_x509_cert_url: https://www.googleapis.com/oauth2/v1/certs
+      client_x509_cert_url: { get_input: client_x509_cert_url }
+      client_email: { get_input: client_email }
+      client_id: { get_input: client_id }
+      project_id: { get_input: project_id }
+      private_key_id: { get_input: private_key_id }
+      private_key: { get_input: private_key }
+    project: { get_input: project_id }
+    zone: { get_input: zone }
+
+node_templates:
+
+  network:
+    type: cloudify.gcp.nodes.Network
+    properties:
+      gcp_config: *client_config
+      name: { concat: [ { get_input: resource_prefix }, 'network', { get_input: resource_suffix } ] }
+      auto_subnets: false
+
+  public_subnet:
+    type: cloudify.gcp.nodes.SubNetwork
+    properties:
+      gcp_config: *client_config
+      name: { concat: [ { get_input: resource_prefix }, 'public_subnet', { get_input: resource_suffix } ] }
+      subnet: { get_input: public_subnet_cidr }
+      region: { get_input: region }
+    relationships:
+    - type: cloudify.gcp.relationships.contained_in_network
+      target: network
+
+  private_subnet:
+    type: cloudify.gcp.nodes.SubNetwork
+    properties:
+      gcp_config: *client_config
+      name: { concat: [ { get_input: resource_prefix }, 'private_subnet', { get_input: resource_suffix } ] }
+      subnet: { get_input: private_subnet_cidr }
+      region: { get_input: region }
+    relationships:
+    - type: cloudify.gcp.relationships.contained_in_network
+      target: network
+
+outputs:
+
+  network:
+    value: { get_property: [ network, name ] }
+
+  public_subnet:
+    value: { get_property: [ public_subnet, name ] }
+
+  private_subnet:
+    value: { get_property: [ private_subnet, name ] }
+
+  zone:
+    value: { get_input: zone }
+
+  region:
+    value: { get_input: region }
